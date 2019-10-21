@@ -1,0 +1,3 @@
+IN  -> adc0832 pin 2
+5V  -> pin 2
+GND -> pin 6

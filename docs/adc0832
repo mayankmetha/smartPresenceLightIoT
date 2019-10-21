@@ -1,0 +1,4 @@
+pin 15   -> 1 | 8 <-  pin 1
+IN (LDR) -> 2 | 7 <-  pin 16
+NO WIRE  -> 3 | 6 <-  pin 18
+pin 9    -> 4 | 5 <-  pin 18
