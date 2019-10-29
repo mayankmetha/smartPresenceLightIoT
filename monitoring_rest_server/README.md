@@ -13,9 +13,11 @@ Make sure to download the certificates for your device, and copy them over to Ra
 * Store the IOT client certificate into `certs` as `thing_cert.pem.crt`
 * Download the `AmazonRootCA1.pem` from [here](https://www.amazontrust.com/repository/AmazonRootCA1.pem) and put it inside `certs` with the same name
 <br>
-From the IOT console, find the hostname for the newly created device, and set it inside both `aws_iot_client.py` and `aws_iot_listener.py` (through property `host = '<>'` <br>
+
+From the IOT console, find the hostname for the newly created device, and set it inside both `aws_iot_client.py` and `aws_iot_listener.py` (through property `host = '<>'`) <br>
 Change the device name to the correct name that you have provided while registering your thing on AWS IOT. Set the `device = '<>'` property in both python files <br>
 In the AWS IOT console, go to the `Manage` section, select your thing, and select the `Shadow` section. Edit the device shadow and set it to: 
+
 ```json
 {
   "reported": {
