@@ -10,16 +10,18 @@ ip = sys.argv[1]
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(8, GPIO.IN)
-old_i = -1
 try:
     while True:
         i = GPIO.input(8)
-        if i != old_i:
+        if i == 1:
+            f = open('../raw/pir0','w')
+            f.write(str(1))
+            f.close()
+        else:
             r = requests.get(ip+":5000/peopleCount")
             f = open('../raw/pir0','w')
             f.write(str(r.text))
             f.close()
-            old_i = i
         time.sleep(5)
 except KeyboardInterrupt:
     GPIO.cleanup()

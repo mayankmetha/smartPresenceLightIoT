@@ -40,7 +40,7 @@ try:
         on = int(f.read(),16)
         f.close()
         if pir > 0:
-            if ldr >= 0.6:
+            if ldr >= 0.55:
                 setColor(on)
             else:
                 setColor(off)
