@@ -2,3 +2,4 @@ numpy
 opencv-python
 matplotlib
 flask
+tensorflow==2.0
