@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
     shadowClient = getShadowClient(clientId=clientId)
     if not shadowClient:
-        print('Failed to connect to AWS IOS device')
+        print('Failed to connect to AWS IOT device')
         exit(1)
 
     shadow = shadowClient.createShadowHandlerWithName(device, False)

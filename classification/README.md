@@ -33,8 +33,23 @@ CAMERA_IP = '<camera IP address:Port>' (e.g. '192.168.1.2:8080')
 ` <br>
 
 ## Running the application
+Flask needs access to the IOT python files in order to work. Set the PYTHONPATH as follows: <br>
+`export PYTHONPATH=<path to repo root folder>/monitoring_rest_server:$PYTHONPATH` <br>
 Start the REST server using `FLASK_APP=rest_server_classifier flask run` <br>
 Make a HTTP GET call to `<server IP>:5000/countPeople` (using a browser will also work) to run get the number of people in the room. <br>
 
 The file can also be run directly as a python script through `python rest_server_classifier.py`, which simply grabs a single frame from the camera, and returns the number of people found. <br>
 
+### Getting and updating IOT device shadow
+Get the current values of the IOT device by making a call to `<server IP>:5000/getShadow`. It returns the JSON content for the 3 values. Sample output shown below:
+```json
+{
+  "currentLdrReading": "0.43",
+  "numLightsOn": "1",
+  "opMode": "on"
+}
+```
+<br>
+Similarly, the device state can be updated by calling `<server IP>:5000/updateOpMode/<newMode>`, where newMode is one of `auto, manual, off, on` <br>
+The output would be `None` (string) if successful, or `Failed` <br>
+Before running `updateOpMode` API, you would need to start the listener on the Raspberry PI by running `python monitoring_rest_server/aws_iot_listener.py` from the repo root folder.
