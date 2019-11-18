@@ -6,7 +6,7 @@ The project is in multiple parts. Check the README files under each folder for r
 Common requirements: <br>
 * Raspberry Pi 3b+
 * PIR sensor, LEDs, LDR sensor
-* Laptop (Ubuntu 18.04+)
+* Laptop (Ubuntu 18.04+/MacOS Catalina)
 * Python 3.6+
 <br>
 
