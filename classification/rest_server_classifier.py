@@ -44,7 +44,7 @@ def countPeople(image):
     for res in result:
         name = classes[res.classid].lower()
         if name == 'person' or name == 'man' or name == 'woman' or  \
-                name == 'boy' or name == 'girl' or 'human' in name:
+                name == 'clothing' or name == 'boy' or name == 'girl' or 'human' in name:
             numPeople += 1
     return numPeople
 
@@ -65,11 +65,11 @@ deviceShadow = shadowClient.createShadowHandlerWithName(device, False)
 CAMERA_IP = '<CAMERA IP>:<PORT>'
 print('Loading Model...')
 det = ObjectDetector('ssd/saved_model')
-# det.loadModel()
+det.loadModel()
 print('Model Load completed...')
 print('Warming up Model...')
-# det.getBoundingBoxes(readImage(ip=CAMERA_IP))
-# det.getBoundingBoxes(readImage(ip=CAMERA_IP))
+det.getBoundingBoxes(readImage(ip=CAMERA_IP))
+det.getBoundingBoxes(readImage(ip=CAMERA_IP))
 
 classes = loadClasses('ssd/label_mapping.csv')
 
