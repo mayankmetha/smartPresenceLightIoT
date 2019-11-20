@@ -1,58 +1,132 @@
-from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTShadowClient 
 import json
 from time import sleep
 import sys
-import threading
-import functools
+import os
+import atexit
+from aws_iot_utils import *
+from aws_iot_client import getCurrentShadow
 
-host = "PUT YOUR AWS IOT HOSTNAME HERE"
-certPath = "certs"
-clientId = "raspberry-pi"
-device = 'Device Name'
+def terminate(event, payload, status, token):
+    print('Terminating Update Workflow')
+    # printState(payload, status, token)
+    event.event.set()
 
-def getShadowClient(rootCa='{}/AmazonRootCA1.pem'.format(certPath),
-                    private_key='{}/thing_private_key.pem.key'.format(certPath),
-                    certificate='{}/thing_cert.pem.crt'.format(certPath)):
-    # Init AWSIoTMQTTClient
-    myAWSIoTMQTTClient = None
-    myAWSIoTMQTTClient = AWSIoTMQTTShadowClient(clientId)
-    myAWSIoTMQTTClient.configureEndpoint(host, 8883)
-    myAWSIoTMQTTClient.configureCredentials(rootCa, private_key, certificate)
+def getNumLightsOn():
+    fileName = 'smd0'
+    filePath = '../raw/{}'.format(fileName)
+    if not os.path.exists(filePath):
+        filePath = 'raw/{}'.format(fileName)
 
-    # AWSIoTMQTTClient connection configuration
-    myAWSIoTMQTTClient.configureAutoReconnectBackoffTime(1, 32, 20)
-    myAWSIoTMQTTClient.configureConnectDisconnectTimeout(10)  # 10 sec
-    myAWSIoTMQTTClient.configureMQTTOperationTimeout(5)  # 5 sec
-    if not myAWSIoTMQTTClient.connect():
-        return None
-    return myAWSIoTMQTTClient
+    numOn = 0
+    with open(filePath) as f:
+        val = f.read()
+        if int(val, 16) > 0:
+            numOn += 1
+        f.close()
+
+    return numOn
+
+def getCurrentLdrReading():
+    fileName = 'ldr0'
+    filePath = '../raw/{}'.format(fileName)
+    if not os.path.exists(filePath):
+        filePath = 'raw/{}'.format(fileName)
+
+    ldrVal = 0.
+    with open(filePath) as f:
+        ldrVal = float(f.read())
+        f.close()
+
+    return ldrVal
+
+def updateShadow(deviceShadow, currentShadow, newMode):
+    if not newMode:
+        newMode = currentShadow.opMode
+
+    newReported = {}
+    newReported['opMode'] = newMode
+    newReported['numLightsOn'] = str(getNumLightsOn())
+    newReported['currentLdrReading'] = '{:.2f}'.format(getCurrentLdrReading())
+
+    newState = {}
+    newState['desired'] = None
+    newState['reported'] = newReported
+
+    newShadow = {}
+    newShadow['state'] = newState
+
+    print('Updating Device Shadow. New Payload: {}'.format(json.dumps(newShadow)))
+    callback = AsyncToSync(terminate)
+    deviceShadow.shadowUpdate(json.dumps(newShadow), callback.getCallback(), 10)
+    return callback.getResult()
+
+def updateState(newState):
+    if newState == None:
+        return
+
+    fileName = 'opMode'
+    filePath = '../raw/{}'.format(fileName)
+    if not os.path.exists(filePath):
+        filePath = 'raw/{}'.format(fileName)
+
+    with open(filePath, 'w') as f:
+        f.write(newState)
+        f.close()
 
 # Callback function
-def printState(event, payload, status, token):
-    res = json.dumps(json.loads(payload), indent=4, sort_keys=True)
-    print('Request completed with status: {}\nResponse: {}'.format(status, res))
+def deltaHandler(asyncToSync, deviceShadow, payload, status, token):
+    print('New Delta Found')
+    # printState(payload, status, token)
     request = json.loads(payload)
     state = request['state']
+    newMode = None
+    invalidReq = False
+    validStates = ['auto', 'manual', 'off', 'on']
     if 'numLightsOn' in state:
-        print('Requested value for numLightsOn: {}'.format(state['numLightsOn']))
+        print('Invalid Requested value for numLightsOn: {}'.format(state['numLightsOn']))
+        invalidReq = True
+
+    newModeNum = None
     if 'opMode' in state:
         print('Requested value for opMode: {}'.format(state['opMode']))
+        newMode = state['opMode'].lower()
+        if not newMode in validStates:
+            invalidReq = True
+            print('Invalid request for state: {}, States should be one of {}'.format(newMode, validStates))
+            newMode = None
+        else:
+            newModeNum = str(validStates.index(newMode))
+
     if 'currentLdrReading' in state:
-        print('Requested value for currentLdrReading: {}'.format(state['currentLdrReading']))
+        print('Invalid Requested value for currentLdrReading: {}'.format(state['currentLdrReading']))
+        invalidReq = True
 
-    event.set()
+    if invalidReq:
+        print('Some/all requested changes are Invalid. Will retain only valid changes')
 
+    # Open file for state, write state
+    updateState(newModeNum)
+
+    # Update device shadow
+    curState = getCurrentShadow(deviceShadow)
+    res = updateShadow(deviceShadow, curState, newMode)
+    print('Updated Device Shadow with result: {}'.format(res))
+    asyncToSync.event.set()
+
+clientId = 'raspberryPi_Server'
 if __name__ == '__main__':
     timeout = 10 # secs
-    event = threading.Event()
-    shadowClient = getShadowClient()
+    shadowClient = getShadowClient(clientId=clientId)
     if not shadowClient:
         print('Failed to connect AWS IOT device')
         exit(1)
 
     shadow = shadowClient.createShadowHandlerWithName(device, False)
-    callback = functools.partial(printState, event)
-    shadow.shadowRegisterDeltaCallback(callback)
+    atexit.register(shutdown, shadowClient)
 
-    print('Registered for callbacks, waiting...')
-    event.wait()
+    while True:
+        callback = AsyncToSync(deltaHandler)
+        callback.addArgument(shadow)
+        shadow.shadowRegisterDeltaCallback(callback.getCallback())
+        print('Registered for callbacks, waiting...')
+        callback.getResult()

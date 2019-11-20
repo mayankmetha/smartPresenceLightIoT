@@ -1,72 +1,62 @@
-from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTShadowClient 
 import json
 from time import sleep
 import sys
-import threading
-import functools
+import atexit
+from aws_iot_utils import *
 
-host = 'PUT YOUR AWS IOT HOSTNAME HERE'
-certPath = "certs"
-clientId = "raspberry-pi_1"
-device = 'Device Name'
+def getCurrentShadowCallback(asyncToSync, payload, status, token):
+    # printState(payload, status, token)
+    result = json.loads(payload)
+    reportedState = result['state']['reported']
+    asyncToSync.result = ShadowState(reportedState['numLightsOn'], reportedState['currentLdrReading'], reportedState['opMode'])
+    asyncToSync.event.set()
 
-def getShadowClient(rootCa='{}/AmazonRootCA1.pem'.format(certPath),
-                    private_key='{}/thing_private_key.pem.key'.format(certPath),
-                    certificate='{}/thing_cert.pem.crt'.format(certPath)):
-    # Init AWSIoTMQTTClient
-    myAWSIoTMQTTClient = None
-    myAWSIoTMQTTClient = AWSIoTMQTTShadowClient(clientId)
-    myAWSIoTMQTTClient.configureEndpoint(host, 8883)
-    myAWSIoTMQTTClient.configureCredentials(rootCa, private_key, certificate)
+def getCurrentShadow(deviceShadow):
+    callback = AsyncToSync(getCurrentShadowCallback)
+    deviceShadow.shadowGet(callback.getCallback(), 10)
+    return callback.getResult()
 
-    # AWSIoTMQTTClient connection configuration
-    myAWSIoTMQTTClient.configureAutoReconnectBackoffTime(1, 32, 20)
-    myAWSIoTMQTTClient.configureConnectDisconnectTimeout(10)  # 10 sec
-    myAWSIoTMQTTClient.configureMQTTOperationTimeout(5)  # 5 sec
-    if not myAWSIoTMQTTClient.connect():
-        return None
+def updateShadowCallback(asyncToSync, payload, status, token):
+    printState(payload, status, token)
+    if not status == 'accepted':
+        asyncToSync.result = 'Failed'
+    asyncToSync.event.set()
 
-    return myAWSIoTMQTTClient
+def updateShadow(shadow, newState):
+    updatePayload = { 'state': {
+        'desired' : {
+            'opMode' : newState
+            }
+        }
+    }
 
-# Callback function
-def printState(event, payload, status, token):
-    res = json.dumps(json.loads(payload), indent=4, sort_keys=True)
-    print('Request completed with status: {}\nResponse: {}'.format(status, res))
-    event.set()
+    callback = AsyncToSync(updateShadowCallback)
+    print('Calling update with payload: {}'.format(json.dumps(updatePayload)))
+    shadow.shadowUpdate(json.dumps(updatePayload), callback.getCallback(), 10)
+    return callback.getResult()
 
+clientId = 'raspberryPi_Client'
 if __name__ == '__main__':
-    timeout = 10 # secs
     args = sys.argv
     if len(args) < 2:
         print('Syntax: {} get-state|update-mode [auto|manual|on|off]'.format(args[0]))
-        exit(1)    
+        exit(1)
 
-    shadowClient = getShadowClient()
+    shadowClient = getShadowClient(clientId=clientId)
     if not shadowClient:
-        print('Failed to connect to AWS IOS device')
+        print('Failed to connect to AWS IOT device')
         exit(1)
 
     shadow = shadowClient.createShadowHandlerWithName(device, False)
-    event = threading.Event()
+    atexit.register(shutdown, shadowClient)
     if args[1] == 'get-state':
-        callback = functools.partial(printState, event)
-        shadow.shadowGet(callback, timeout)
+        print(getCurrentShadow(shadow))
     elif args[1] == 'update-state':
         if not len(args) == 3:
             print('Invalid arguments. New mode required. Only One of manual|auto|on|off must be specified')
             exit(1)
-
-        updatePayload = { 'state': {
-                            'desired' : {
-                                'opMode' : args[2]
-                                }
-                            }
-                        }
         print('Attempting to set operation mode to {}'.format(args[2]))
-        callback = functools.partial(printState, event)
-        shadow.shadowUpdate(json.dumps(updatePayload), callback, timeout)
+        updateShadow(shadow, args[2])
     else:
         print('Invalid arguments. One of <get-state|update-state> need to be specified')
         exit(1)
-
-    event.wait()
