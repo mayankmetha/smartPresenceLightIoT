@@ -29,23 +29,33 @@ def setColor(col):
 
 try:
     while True:
+        f = open('../raw/opMode','r')
+        opMode = int(f.read())
+        f.close()
         setColor(off)
-        f = open('../raw/ldr0','r')
-        ldr = float(f.read())
-        f.close()
-        f = open('../raw/pir0','r')
-        pir = int(f.read())
-        f.close()
         f = open('../raw/smd0','r')
         on = int(f.read(),16)
         f.close()
-        if pir > 0:
-            if ldr >= 0.55:
-                setColor(on)
+        if opMode == 0:
+            f = open('../raw/ldr0','r')
+            ldr = float(f.read())
+            f.close()
+            f = open('../raw/pir0','r')
+            pir = int(f.read())
+            f.close()
+            if pir > 0:
+                if ldr >= 0.1:
+                    setColor(on)
+                else:
+                    setColor(off)
             else:
                 setColor(off)
-        else:
+        elif opMode == 1:
+            pass
+        elif opMode == 2:
             setColor(off)
+        elif opMode == 3:
+            setColor(on)
         time.sleep(1)
 except KeyboardInterrupt:
     p_R.stop()
