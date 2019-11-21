@@ -14,7 +14,7 @@ try:
         fin = open('../raw/ldr0','w')
         fin.write(str(remap(adc0832.getResult(),0,255,0,1)))
         fin.close()
-        time.sleep(1)
+        time.sleep(5)
 except KeyboardInterrupt:
     adc0832.destroy()
     GPIO.cleanup()
